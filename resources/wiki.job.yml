@@ -1,0 +1,64 @@
+resources:
+  jobs:
+    wiki_job:
+      name: wikipedia_lakehouse
+      # Wikimedia publishes each hour's dump shortly after it ends, so by 06:00 UTC the previous
+      # day is complete. Dev mode pauses this schedule automatically.
+      schedule:
+        quartz_cron_expression: "0 0 6 * * ?"
+        timezone_id: UTC
+      email_notifications:
+        on_failure:
+          - ${workspace.current_user.userName}
+
+      parameters:
+        - name: days
+          default: ${var.days}
+
+      environments:
+        - environment_key: default
+          spec:
+            environment_version: "3"
+
+      tasks:
+        - task_key: download_raw
+          environment_key: default
+          # Wikimedia throttles busy clients (429) and occasionally 5xx; already-downloaded hours
+          # are skipped on retry.
+          max_retries: 2
+          min_retry_interval_millis: 300000
+          spark_python_task:
+            python_file: ../src/ingest/download_pageviews.py
+            parameters:
+              - --days
+              - "{{job.parameters.days}}"
+              - --dest
+              - /Volumes/${var.catalog}/${resources.schemas.wikipedia.name}/${resources.volumes.raw.name}
+              - --user-agent
+              - ${var.user_agent}
+
+        - task_key: refresh_pipeline
+          depends_on:
+            - task_key: download_raw
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.wiki_pipeline.id}
+
+        - task_key: monitor_traffic
+          depends_on:
+            - task_key: refresh_pipeline
+          environment_key: default
+          spark_python_task:
+            python_file: ../src/monitoring/setup_monitor.py
+            parameters:
+              - --table
+              - ${var.catalog}.${resources.schemas.wikipedia.name}.gold_hourly_traffic
+              - --timestamp-col
+              - view_hour
+              - --granularity
+              - 1 hour
+              - --slice
+              - project
+              - --output-schema
+              - ${var.catalog}.${resources.schemas.wikipedia.name}
+              - --assets-dir
+              - ${workspace.root_path}/monitoring

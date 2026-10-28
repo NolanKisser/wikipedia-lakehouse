@@ -1,0 +1,14 @@
+resources:
+  pipelines:
+    wiki_pipeline:
+      name: wikipedia_pageviews_pipeline
+      catalog: ${var.catalog}
+      schema: ${resources.schemas.wikipedia.name}
+      serverless: true
+      # root_path is added to sys.path, so transformations can `import utilities.transforms`.
+      root_path: ../src/wiki_pipeline
+      libraries:
+        - glob:
+            include: ../src/wiki_pipeline/transformations/**
+      configuration:
+        wiki.raw_path: /Volumes/${var.catalog}/${resources.schemas.wikipedia.name}/${resources.volumes.raw.name}

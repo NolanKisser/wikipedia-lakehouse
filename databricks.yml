@@ -1,0 +1,39 @@
+# Databricks Asset Bundle for the Wikipedia pageviews lakehouse.
+# Docs: https://docs.databricks.com/dev-tools/bundles/
+bundle:
+  name: wikipedia_lakehouse
+
+include:
+  - resources/*.yml
+
+variables:
+  catalog:
+    description: Unity Catalog catalog that holds the lakehouse schema (Free Edition ships with "workspace").
+    default: workspace
+  days:
+    description: >-
+      UTC hours of pageview dumps to ingest. Comma-separated days ("2025-10-01"), day ranges
+      ("2025-10-01:2025-10-07"), single hours ("2025-10-01T13") or "last:N" for the N full days
+      before today. Each day is 24 files, roughly 1 GB.
+    default: "last:1"
+  user_agent:
+    description: >-
+      User-Agent sent to Wikimedia, which requires one that identifies the client and a way to
+      contact its operator. Add your email or repo URL.
+    default: "wikipedia-lakehouse/0.1 (https://github.com/NolanKisser/wikipedia-lakehouse)"
+
+targets:
+  # `databricks bundle deploy` -> per-user copy: resources are prefixed "[dev <you>]",
+  # schedules are paused, and the schema becomes dev_<you>_wikipedia.
+  dev:
+    mode: development
+    default: true
+
+  # Deployed by GitHub Actions on every push to main.
+  prod:
+    mode: production
+    workspace:
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
+    permissions:
+      - user_name: ${workspace.current_user.userName}
+        level: CAN_MANAGE

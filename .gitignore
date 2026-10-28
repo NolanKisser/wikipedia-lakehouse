@@ -1,0 +1,19 @@
+.databricks/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+spark-warehouse/
+metastore_db/
+derby.log
+.env
+
+# Credentials: never commit Databricks/GitHub tokens
+.databrickscfg
+.env.*
+*.pem
+*.key
+
+# Pageview dumps downloaded locally (README fallback path)
+data/

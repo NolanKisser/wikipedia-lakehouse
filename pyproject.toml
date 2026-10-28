@@ -1,0 +1,28 @@
+[project]
+name = "wikipedia-lakehouse"
+version = "0.1.0"
+description = "Production-style Databricks lakehouse over Wikipedia hourly pageviews"
+requires-python = ">=3.11"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "pyspark>=4.0,<4.2",
+    "pytest>=8",
+    "ruff>=0.6",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["src/wiki_pipeline", "src/ingest"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 110
+src = ["src/wiki_pipeline", "src/ingest", "src/monitoring"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+# `spark` is injected as a global by the Lakeflow pipeline runtime.
+"src/wiki_pipeline/transformations/*.py" = ["F821"]
