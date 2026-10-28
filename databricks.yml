@@ -21,6 +21,10 @@ variables:
       User-Agent sent to Wikimedia, which requires one that identifies the client and a way to
       contact its operator. Add your email or repo URL.
     default: "wikipedia-lakehouse/0.1 (https://github.com/NolanKisser/wikipedia-lakehouse)"
+  warehouse_id:
+    description: SQL warehouse that runs the Genie space's queries (Free Edition ships with this one).
+    lookup:
+      warehouse: Serverless Starter Warehouse
 
 targets:
   # `databricks bundle deploy` -> per-user copy: resources are prefixed "[dev <you>]",

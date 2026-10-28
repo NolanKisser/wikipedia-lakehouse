@@ -1,0 +1,89 @@
+# AI/BI Genie space over the gold tables: ask questions in plain English, get SQL and charts.
+# Instructions and example SQL teach Genie the data model (wiki = language + project, UTC dates).
+resources:
+  genie_spaces:
+    wiki_genie:
+      title: Wikipedia Pageviews
+      description: >-
+        Ask what people are reading on Wikipedia: trending and most viewed articles per language,
+        hourly and mobile traffic patterns, and pipeline data quality. Built on the
+        wikipedia_lakehouse gold tables.
+      warehouse_id: ${var.warehouse_id}
+      serialized_space:
+        version: 2
+        config:
+          sample_questions:
+            - id: a0000000000000000000000000000001
+              question: ["What's trending on English Wikipedia this week?"]
+            - id: a0000000000000000000000000000002
+              question: ["What were the most viewed articles on Portuguese Wikipedia in the last 7 days?"]
+            - id: a0000000000000000000000000000003
+              question: ["When does mobile traffic peak on Japanese Wikipedia?"]
+            - id: a0000000000000000000000000000004
+              question: ["Which Wikipedia languages get the most views?"]
+            - id: a0000000000000000000000000000005
+              question: ["How have daily views of the ChatGPT article changed?"]
+        data_sources:
+          tables:
+            - identifier: ${var.catalog}.${resources.schemas.wikipedia.name}.gold_daily_article_views
+            - identifier: ${var.catalog}.${resources.schemas.wikipedia.name}.gold_daily_top_articles
+            - identifier: ${var.catalog}.${resources.schemas.wikipedia.name}.gold_data_quality
+            - identifier: ${var.catalog}.${resources.schemas.wikipedia.name}.gold_hourly_traffic
+            - identifier: ${var.catalog}.${resources.schemas.wikipedia.name}.gold_trending_articles
+            - identifier: ${var.catalog}.${resources.schemas.wikipedia.name}.silver_wikis
+        instructions:
+          text_instructions:
+            - id: b0000000000000000000000000000001
+              content:
+                - |
+                  * A wiki is identified by the pair (language, project). "English Wikipedia" means language = 'en' AND project = 'wikipedia'. "German Wiktionary" means language = 'de' AND project = 'wiktionary'.
+                  * Map language names to codes with silver_wikis (language_name -> language_code, e.g. German -> de, Japanese -> ja, Portuguese -> pt). gold_hourly_traffic already has language_name.
+                  * When the user says "Wikipedia" or names no project, use project = 'wikipedia'. When no language is named, use English (language = 'en') and say so.
+                  * Show the `article` column (title with spaces) to users, not page_title. Article tables only contain reader-facing articles; Main_Page, Special:, User:, File: and similar pages are already excluded.
+                  * All dates and hours are UTC. view_date is a UTC date and view_hour is the start of a UTC hour.
+                  * Data only exists for the days that were loaded, and the newest day is usually yesterday. Resolve "today", "this week" and "last N days" relative to the latest view_date in the table, not current_date().
+                  * views = desktop_views + mobile_views. Mobile share = mobile_views / views.
+                  * "Trending" or "spiking" means gold_trending_articles: views that day are at least 5x the trailing 7-day average (baseline_views) and at least 1,000. Rank by spike_ratio.
+                  * "Top" or "most viewed" for one day: use gold_daily_top_articles (top 100 per wiki per day, by rank). For several days, SUM(views) from gold_daily_article_views.
+                  * Questions about bad, dropped or quarantined data use gold_data_quality.
+          example_question_sqls:
+            - id: c0000000000000000000000000000001
+              question: ["What's trending on German Wikipedia this week?"]
+              sql:
+                - |
+                  SELECT view_date, article, views, ROUND(baseline_views) AS baseline_views, ROUND(spike_ratio, 1) AS spike_ratio
+                  FROM ${var.catalog}.${resources.schemas.wikipedia.name}.gold_trending_articles
+                  WHERE language = 'de' AND project = 'wikipedia'
+                    AND view_date > (SELECT DATE_SUB(MAX(view_date), 7) FROM ${var.catalog}.${resources.schemas.wikipedia.name}.gold_trending_articles)
+                  ORDER BY spike_ratio DESC
+                  LIMIT 20
+            - id: c0000000000000000000000000000002
+              question: ["Most viewed English Wikipedia articles over the last 7 days"]
+              sql:
+                - |
+                  SELECT article, SUM(views) AS views, ROUND(SUM(mobile_views) / SUM(views), 3) AS mobile_share
+                  FROM ${var.catalog}.${resources.schemas.wikipedia.name}.gold_daily_article_views
+                  WHERE language = 'en' AND project = 'wikipedia'
+                    AND view_date > (SELECT DATE_SUB(MAX(view_date), 7) FROM ${var.catalog}.${resources.schemas.wikipedia.name}.gold_daily_article_views)
+                  GROUP BY article
+                  ORDER BY views DESC
+                  LIMIT 25
+            - id: c0000000000000000000000000000003
+              question: ["When does mobile traffic peak on Japanese Wikipedia?"]
+              sql:
+                - |
+                  SELECT HOUR(view_hour) AS hour_utc, AVG(views) AS avg_views, AVG(mobile_share) AS avg_mobile_share
+                  FROM ${var.catalog}.${resources.schemas.wikipedia.name}.gold_hourly_traffic
+                  WHERE language_name = 'Japanese' AND project = 'wikipedia'
+                  GROUP BY HOUR(view_hour)
+                  ORDER BY hour_utc
+            - id: c0000000000000000000000000000004
+              question: ["Which Wikipedia languages get the most views?"]
+              sql:
+                - |
+                  SELECT language_name, language, SUM(views) AS views
+                  FROM ${var.catalog}.${resources.schemas.wikipedia.name}.gold_hourly_traffic
+                  WHERE project = 'wikipedia'
+                  GROUP BY language_name, language
+                  ORDER BY views DESC
+                  LIMIT 20

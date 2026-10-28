@@ -33,6 +33,7 @@ flowchart LR
 | Time-series drift monitoring | `src/monitoring/setup_monitor.py` |
 | Delta Sharing to non-Databricks consumers | `sql/delta_sharing.sql` |
 | Test, validate and deploy from GitHub Actions | `.github/workflows/ci.yml` |
+| Plain-English questions over the gold tables (AI/BI Genie), with instructions and example SQL | `resources/wiki.genie.yml` |
 | Lineage, from raw file to gold column | automatic in Unity Catalog (Catalog Explorer → Lineage) |
 
 ## The data
@@ -130,6 +131,6 @@ Add these repository secrets: `DATABRICKS_HOST` and `DATABRICKS_TOKEN` (a person
 
 ## Next steps
 
-- Build an AI/BI dashboard on the gold tables and add it to the bundle as a `dashboards` resource, or point a Genie space at them ("what's trending on German Wikipedia this week?").
+- Build an AI/BI dashboard on the gold tables and add it to the bundle as a `dashboards` resource.
 - Flag likely bot traffic, such as pages with extreme desktop-only spikes, and exclude it from trending.
 - Join with the [clickstream dumps](https://dumps.wikimedia.org/other/clickstream/) to see where trending articles get their readers from.

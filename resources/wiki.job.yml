@@ -47,6 +47,10 @@ resources:
           depends_on:
             - task_key: refresh_pipeline
           environment_key: default
+          # Serverless sometimes fails to read the task's own workspace file on first start
+          # (403 from workspace storage); a retry gets past it.
+          max_retries: 2
+          min_retry_interval_millis: 60000
           spark_python_task:
             python_file: ../src/monitoring/setup_monitor.py
             parameters:
