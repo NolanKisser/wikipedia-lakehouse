@@ -148,7 +148,9 @@ Tests run PySpark locally and need **Java 17 or 21**. Newer JDKs might not start
 2. **validate**: `databricks bundle validate -t prod`
 3. **deploy**: `databricks bundle deploy -t prod`, then `databricks bundle run digest_app -t prod` to start the app (only on push to `main`, gated by the `prod` GitHub environment)
 
-**First deploy:** the Genie space can only be created once its tables exist. If the first deploy fails at `genie_spaces.wiki_genie`, run the prod job once (`databricks bundle run wiki_job -t prod`), then re-run the workflow.
+A deploy makes prod match the commit being deployed, so re-running an old workflow run would roll prod back. The deploy job therefore runs only for the latest commit on `main`. Re-runs of older runs skip it with a warning.
+
+**First deploy:** the Genie space can only be created once its tables exist. If the first deploy fails at `genie_spaces.wiki_genie`, run the prod job once (`databricks bundle run wiki_job -t prod`), then re-run the latest workflow run on `main`.
 
 Add these repository secrets: `DATABRICKS_HOST` and `DATABRICKS_TOKEN` (a personal access token). For a real production setup, deploy as a service principal: set `run_as` in the `prod` target and use `DATABRICKS_CLIENT_ID` and `DATABRICKS_CLIENT_SECRET` (OAuth M2M) in place of the token.
 
