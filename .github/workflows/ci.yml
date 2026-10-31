@@ -44,7 +44,19 @@ jobs:
       DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
     steps:
       - uses: actions/checkout@v5
+      # Deploys make prod match the deployed commit, so re-running an old run would roll prod back.
+      # Only the latest commit on main deploys; older runs skip with a warning.
+      - id: latest
+        run: |
+          latest=$(git ls-remote origin refs/heads/main | cut -f1)
+          if [ "$latest" != "$GITHUB_SHA" ]; then
+            echo "::warning::Skipping deploy: $GITHUB_SHA is not the latest main ($latest)"
+            echo "stale=true" >> "$GITHUB_OUTPUT"
+          fi
       - uses: databricks/setup-cli@main
+        if: steps.latest.outputs.stale != 'true'
       - run: databricks bundle deploy -t prod
+        if: steps.latest.outputs.stale != 'true'
       # Deploy uploads the app's code; run deploys it to the app's compute and starts it.
       - run: databricks bundle run digest_app -t prod
+        if: steps.latest.outputs.stale != 'true'
