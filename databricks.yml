@@ -21,6 +21,14 @@ variables:
       User-Agent sent to Wikimedia, which requires one that identifies the client and a way to
       contact its operator. Add your email or repo URL.
     default: "wikipedia-lakehouse/0.1 (https://github.com/NolanKisser/wikipedia-lakehouse)"
+  digest_model:
+    description: >-
+      Chat model serving endpoint that groups and explains trending articles. gpt-oss-120b followed
+      the "never guess" rule best in testing; smaller models invented reasons for unexplained spikes.
+    default: databricks-gpt-oss-120b
+  app_name:
+    description: Databricks App name. Dev mode doesn't prefix app names, so the dev target overrides it.
+    default: wiki-trending
   warehouse_id:
     description: SQL warehouse that runs the Genie space's queries (Free Edition ships with this one).
     lookup:
@@ -32,6 +40,8 @@ targets:
   dev:
     mode: development
     default: true
+    variables:
+      app_name: wiki-trending-dev
 
   # Deployed by GitHub Actions on every push to main.
   prod:

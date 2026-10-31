@@ -18,6 +18,9 @@ flowchart LR
     SP & SQ --> GQ[gold_data_quality]
     GH -.->|Lakehouse Monitoring| MON[profile + drift metrics]
     GT & GR -.->|Delta Sharing| EXT[external recipient]
+    GR -->|build_digest task + LLM| ST[gold_trending_stories]
+    CE[(Current events +<br/>article summaries)] --> ST
+    ST --> APP[Databricks App]
 ```
 
 ## What it shows
@@ -34,6 +37,8 @@ flowchart LR
 | Delta Sharing to non-Databricks consumers | `sql/delta_sharing.sql` |
 | Test, validate and deploy from GitHub Actions | `.github/workflows/ci.yml` |
 | Plain-English questions over the gold tables (AI/BI Genie), with instructions and example SQL | `resources/wiki.genie.yml` |
+| Daily LLM digest explaining why articles trend, grounded in Wikipedia itself (Foundation Model APIs) | `src/digest/build_digest.py` |
+| Streamlit Databricks App over the digest, with least-privilege grants to its service principal | `src/digest_app/`, `resources/digest.app.yml` |
 | Lineage, from raw file to gold column | automatic in Unity Catalog (Catalog Explorer → Lineage) |
 
 ## The data
@@ -59,6 +64,7 @@ Each dump line is `domain_code page_title views 0`. The hour comes from the file
 | `gold_trending_articles` | Articles with at least 5× their trailing 7-day average views (and at least 1,000 views). Days with no views count as 0 |
 | `gold_hourly_traffic` | Views, mobile share and approximate distinct pages per wiki per hour, with language names |
 | `gold_data_quality` | Lines kept vs. quarantined per day, and failures per rule |
+| `gold_trending_stories` | Trending English Wikipedia articles grouped into stories with an LLM-written headline and summary. Written by the `build_digest` job task, not the pipeline |
 
 ## Quickstart
 
@@ -93,6 +99,21 @@ databricks fs cp -r ./data dbfs:/Volumes/workspace/dev_<you>_wikipedia/raw --ove
 
 Then run the pipeline directly with `databricks bundle run wiki_pipeline`. The job's download task needs internet access even when the files are already uploaded, because it always refreshes the wiki list.
 
+## Trending digest
+
+After each pipeline run, the `build_digest` task explains the latest day's trending English Wikipedia articles, and the **wiki-trending** Databricks App shows the result.
+
+1. **Pick candidates.** It takes the 50 most viewed trending articles, with each one's peak hour and desktop share from `silver_pageviews`.
+2. **Set aside likely bots.** Most people reading a news spike are on mobile (about 80% on Oct 29, 2026). Spikes that are at least 95% desktop are listed separately and not explained. Concentration in one hour is not used as a bot signal: breaking news from a near-zero baseline looks the same.
+3. **Ground the model.** The model's training data predates the news, so asked on its own it would guess. The prompt includes Wikipedia's [Current events](https://en.wikipedia.org/wiki/Portal:Current_events) page for the day and the day before, plus each article's current description and lead paragraph, which editors update within hours. It also lists which trending articles link to each other on Wikipedia (one `prop=links` query), so *Wendy Neuss* can join the *Patrick Stewart* story even though her own summary doesn't mention his death.
+4. **Group and explain.** A Foundation Model API endpoint (`digest_model`, default `databricks-gpt-oss-120b`) returns JSON that assigns every article a story id or `null`, then describes each story. Deciding per article stops the model skipping articles silently. Titles are checked against the candidates. Articles the context doesn't explain are listed as "unexplained" rather than given a made-up reason.
+
+In a side-by-side test on real Oct 29, 2026 news, `gpt-oss-120b` grouped the stories correctly and left an unexplained spike alone, Qwen3-Next invented a reason for that spike, and Llama 3.3 70B returned invalid JSON. Over five runs on that day's 49 candidates, it explained 28 to 31 articles each time.
+
+Known limits: grouping follows links, so an article linked to a bigger story can be pulled into it (on Oct 29, *Ernie Johnson Jr.*'s retirement sometimes joined the Brewers story). Summaries occasionally still mention renewed attention.
+
+Rerunning the task for a day replaces that day's rows. To redo a past day, run `src/digest/build_digest.py` with `--date YYYY-MM-DD`.
+
 ## Data quality
 
 Silver enforces the rules in `QUALITY_RULES` (`utilities/transforms.py`). Rows that fail any rule are dropped from `silver_pageviews` and written to `silver_pageviews_quarantine`. Because the quarantine predicate is the exact complement of the rules, every bronze line ends up in exactly one of the two tables.
@@ -125,12 +146,14 @@ Tests run PySpark locally and need **Java 17 or 21**. Newer JDKs might not start
 
 1. **test**: ruff and pytest on Java 17
 2. **validate**: `databricks bundle validate -t prod`
-3. **deploy**: `databricks bundle deploy -t prod` (only on push to `main`, gated by the `prod` GitHub environment)
+3. **deploy**: `databricks bundle deploy -t prod`, then `databricks bundle run digest_app -t prod` to start the app (only on push to `main`, gated by the `prod` GitHub environment)
+
+**First deploy:** the Genie space can only be created once its tables exist. If the first deploy fails at `genie_spaces.wiki_genie`, run the prod job once (`databricks bundle run wiki_job -t prod`), then re-run the workflow.
 
 Add these repository secrets: `DATABRICKS_HOST` and `DATABRICKS_TOKEN` (a personal access token). For a real production setup, deploy as a service principal: set `run_as` in the `prod` target and use `DATABRICKS_CLIENT_ID` and `DATABRICKS_CLIENT_SECRET` (OAuth M2M) in place of the token.
 
 ## Next steps
 
 - Build an AI/BI dashboard on the gold tables and add it to the bundle as a `dashboards` resource.
-- Flag likely bot traffic, such as pages with extreme desktop-only spikes, and exclude it from trending.
+- Move the digest's likely-automated filter into `gold_trending_articles`, so Genie and Delta Sharing skip bot spikes too.
 - Join with the [clickstream dumps](https://dumps.wikimedia.org/other/clickstream/) to see where trending articles get their readers from.

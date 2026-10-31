@@ -7,18 +7,19 @@ dependencies = []
 
 [dependency-groups]
 dev = [
+    "databricks-sdk>=0.50",
     "pyspark>=4.0,<4.2",
     "pytest>=8",
     "ruff>=0.6",
 ]
 
 [tool.pytest.ini_options]
-pythonpath = ["src/wiki_pipeline", "src/ingest"]
+pythonpath = ["src/wiki_pipeline", "src/ingest", "src/digest"]
 testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 110
-src = ["src/wiki_pipeline", "src/ingest", "src/monitoring"]
+src = ["src/wiki_pipeline", "src/ingest", "src/monitoring", "src/digest"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
