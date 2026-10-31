@@ -1,0 +1,20 @@
+# Databricks App that shows the daily trending digest (gold_trending_stories).
+# `databricks bundle deploy` uploads the code; `databricks bundle run digest_app` deploys and starts it.
+resources:
+  apps:
+    digest_app:
+      name: ${var.app_name}
+      description: Why is it trending? Daily stories behind English Wikipedia's biggest pageview spikes.
+      source_code_path: ../src/digest_app
+      config:
+        command: ["streamlit", "run", "app.py"]
+        env:
+          - name: DATABRICKS_WAREHOUSE_ID
+            value_from: sql-warehouse
+          - name: STORIES_TABLE
+            value: ${var.catalog}.${resources.schemas.wikipedia.name}.gold_trending_stories
+      resources:
+        - name: sql-warehouse
+          sql_warehouse:
+            id: ${var.warehouse_id}
+            permission: CAN_USE

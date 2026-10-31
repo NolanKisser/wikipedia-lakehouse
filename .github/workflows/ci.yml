@@ -46,3 +46,5 @@ jobs:
       - uses: actions/checkout@v5
       - uses: databricks/setup-cli@main
       - run: databricks bundle deploy -t prod
+      # Deploy uploads the app's code; run deploys it to the app's compute and starts it.
+      - run: databricks bundle run digest_app -t prod

@@ -4,6 +4,10 @@ resources:
       name: wikipedia
       catalog_name: ${var.catalog}
       comment: Wikipedia hourly pageviews lakehouse (bronze / silver / gold). Managed by Databricks Asset Bundles.
+      # Granted on the schema rather than per table, so the app can deploy before its table exists.
+      grants:
+        - principal: ${resources.apps.digest_app.service_principal_client_id}
+          privileges: [USE_SCHEMA, SELECT]
 
   volumes:
     raw:

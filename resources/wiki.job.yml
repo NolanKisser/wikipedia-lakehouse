@@ -43,6 +43,22 @@ resources:
           pipeline_task:
             pipeline_id: ${resources.pipelines.wiki_pipeline.id}
 
+        - task_key: build_digest
+          depends_on:
+            - task_key: refresh_pipeline
+          environment_key: default
+          max_retries: 1
+          min_retry_interval_millis: 60000
+          spark_python_task:
+            python_file: ../src/digest/build_digest.py
+            parameters:
+              - --schema
+              - ${var.catalog}.${resources.schemas.wikipedia.name}
+              - --model
+              - ${var.digest_model}
+              - --user-agent
+              - ${var.user_agent}
+
         - task_key: monitor_traffic
           depends_on:
             - task_key: refresh_pipeline
